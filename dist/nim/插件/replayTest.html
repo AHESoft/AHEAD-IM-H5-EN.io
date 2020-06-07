@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Whiteboard</title>
+  <style media="screen">
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    canvas {
+      /* image-rendering: optimizeSpeed; */
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: optimize-contrast;
+      -ms-interpolation-mode: nearest-neighbor;
+      transform: translate3d(0, 0, 0);
+    }
+
+    #app {
+      position: fixed !important;
+      top: 0;
+      right: 400px;
+      bottom: 0;
+      left: 0;
+    }
+
+    #wb {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 100%;
+    }
+
+    #tb {
+      /* */
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 46px;
+      z-index: 999;
+      /*
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 46px;
+      height: 100%;
+      z-index: 99;
+      /* */
+    }
+
+    #js-video {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 400px;
+
+    }
+
+    input {
+      padding: 5px;
+      font-size: 14px;
+      font-family: sans-serif;
+    }
+
+    .pd10 {
+      padding: 40px;
+    }
+
+    .user-video-item {}
+
+    .user-video-item video {
+      width: 400px;
+      height: 300px;
+    }
+
+    .hide {
+      display: none
+    }
+  </style>
+</head>
+
+<body>
+  <div id='step-1' class="pd10">
+    <label for="chooseFiles">
+      <input hidden type="file" multiple name="select" id="chooseFiles">
+      <span style='-webkit-appearance: button;'>请选择文件</span>
+    </label>
+  </div>
+  <div id='step-2' class="pd10 hide">
+
+  </div>
+  <div id="app" class="hide">
+    <div id="wb"></div>
+    <div id="tb"></div>
+  </div>
+  <div id="js-video"></div>
+
+  <script src="/public/NIM_Web_NIM_v6.5.0.js"></script>
+  <script src="/public/NIM_Web_WhiteBoard_v6.5.0.js"></script>
+
+  <!-- <script src="/public/NIM_Web_NIM_v6.8.0_test.js"></script> -->
+  <!-- <script src="/public/NIM_Web_WhiteBoard_v6.8.0_test.js"></script> -->
+  <!-- <script src="/public/js/DrawPlugin.js"></script> -->
+  <!-- <script src="/public/js/webview.js"></script> -->
+  <script src="/public/js/RecordPlayer.js"></script>
+  <script src="/public/js/RecordPlayerUI.js"></script>
+  <!-- <script src="/public/vconsole.min.js"></script>
+  <script>
+    if (location.hash) { var vConsole = new VConsole(); } 
+  </script> -->
+  <script>
+    var utils = RecordPlayer.utils;
+    let $ = (el) => document.querySelector(el)
+
+
+    $('#chooseFiles').addEventListener('change', e => {
+      let input = e.target;
+
+      let files = Array.from(input.files).map(file => {
+        return {
+          file: file,
+          url: URL.createObjectURL(file),
+          name: file.name
+        }
+      })
+      const isConfig = file => file.name.search('replay-config') > -1;
+      let userConfigFile = files.filter(isConfig)[0]
+      files = files.filter(f => !isConfig(f))
+
+      let filesMap = files.reduce((map, file) => {
+        map.set(file.name, file.url);
+        return map
+      }, new Map())
+
+
+
+      // config是配置参数
+      function processConfig(config) {
+        let oldVersion = config['oldVersion']
+        delete config.oldVersion;
+
+        let resultArray = []
+
+        Object.keys(config).forEach(account => {
+          let userFiles = config[account];
+          if (userFiles && userFiles.length) {
+            userFiles.forEach(filename => {
+              let fileURL = filesMap.get(filename);
+
+              var track = utils.parseUrl(filename);
+              track.account = account;
+              track.url = fileURL;
+              resultArray.push(track)
+            })
+          }
+        })
+
+        initRecall(resultArray, oldVersion)
+      }
+
+      // 隐藏第一步
+      $('#step-1').classList.add('hide')
+
+      if (userConfigFile) {
+        let fr = new FileReader()
+        fr.onload = () => {
+          $('#app').classList.remove('hide')
+          processConfig(JSON.parse(fr.result))
+        }
+        fr.readAsText(userConfigFile.file)
+      } else {
+        let configSample = {
+          cs1: ["xxxxx.gz", "xxxxx.mp4"],
+          cs2: ["xxxxxxxxx.gz"],
+          oldVersion: {
+            use: true,
+            c: '这个是注释，如果要使用旧版本，设置上面的useMe为true， 不是旧版本设置为false',
+            appKey: "", // 填自己的appkey
+            account: 'cs1',
+            token: 'e10adc3949ba59abbe56e057f20f883e',
+          }
+        }
+        configSample = new Blob([JSON.stringify(configSample, null, 2)])
+        // 显示第二步
+        $('#step-2').classList.remove('hide')
+        $('#step-2').innerHTML = `
+       <p> 按tab键可以快速切换到下一个输入框.(可以选择一个参数文件，跳过输入，加快效率。<a href="${URL.createObjectURL(configSample)}" download='wb-replay-config.json'> 下载sample,然后在刚才选择文件时一起上传</a>)</p>
+        ${files.map(file => {
+          return `<div>
+                <input id="${btoa(file.name).replace(/[=\/:]/g, '')}" placeholder='录制文件的account' >
+                ${file.name}
+              </div>
+            `
+        }).join('\n')}
+
+      <p>
+      <input id="js-old-use" type="checkbox"  />是否是旧版本，旧版本需要填写一下account appkey等 <br />
+      <input id="js-old-account" type="text" placeholder="account" value="cs1"/> => account
+      <input id="js-old-token" type="text" placeholder="token" value="e10adc3949ba59abbe56e057f20f883e" /> => token
+      <input id="js-old-appKey" type="text" placeholder="appKey" value="1ee5a51b7d008254cd73b1d4369a9494" /> => appKey
+
+      </p> 
+      <a href="javascript:void 0" id="to-step-3">下一步</a>
+      `
+        $('#to-step-3').addEventListener('click', (e) => {
+          $('#step-2').classList.add('hide')
+          $('#app').classList.remove('hide')
+
+
+          let oldVersion = { use: false }
+          let config = { oldVersion }
+          // 取数据，
+          files.forEach(file => {
+            let userAccount = $(`[id=${btoa(file.name).replace(/[=\/:]/g, '')}]`).value;
+
+            if (typeof config[userAccount] === 'undefined') {
+              config[userAccount] = []
+            }
+            config[userAccount].push(file.name)
+          })
+          // 是否是旧版本，
+
+          oldVersion.use = $('#js-old-use').checked
+          if (oldVersion.use) {
+            oldVersion.account = $('#js-old-account').value
+            oldVersion.token = $('#js-old-token').value
+            oldVersion.appKey = $('#js-old-appKey').value
+          }
+
+          processConfig(config)
+        })// to step-3
+      }// has or not has
+
+
+
+
+    }) // onChangeListenr
+
+  </script>
+  <script>
+
+  </script>
+  <script type="text/javascript">
+    function initRecall(recordFiles, oldVersion) {
+
+      // 初始化NIM，为了兼容老版本，录制回放的播放图片PPT的时候需要用nim去获取文件
+
+      let handleOldVersionHook = undefined;
+      if (oldVersion && oldVersion.use) {
+
+
+        const { appKey, token, account } = oldVersion;
+
+        var nim = NIM.getInstance({
+          db: false,
+          debug: false,//param.debug,
+          appKey,
+          account,
+          token,
+     
+          onconnect: function (event) {
+            console.log(nim)
+          },
+          onerror: function (event) {
+            console.error('im onerror:', event)
+            onNativeFunction('webError', {
+              code: 400,
+              msg: event.message || 'im onerror 网络状态异常'
+            })
+          },
+          onwillreconnect: function (event) {
+            console.log('im onwillreconnect:', event)
+            onNativeFunction('webReconnect')
+          },
+          ondisconnect: function (error) {
+            let msg = ''
+            switch (error.code) {
+              case 302:
+                msg = 'Account或密码错误'
+                break
+              case 'kicked':
+                const map = {
+                  PC: '电脑版',
+                  Web: '网页版',
+                  Android: 'Mobile版',
+                  iOS: 'Mobile版',
+                  WindowsPhone: 'Mobile版'
+                }
+                msg = `您的Account被${map[error.from] || '其他端'}踢出下线`
+                break
+              default:
+            }
+
+            im.destroy()
+          }
+        })
+
+
+        // 这个是一个处理函数，用于兼容旧版本的白板录制文件中，需要使用的是nim的docId去下载文件
+        handleOldVersionHook = function (type, file) {
+          console.log(type, file);
+          if (type === 'img') {
+            let docId = file.docId;
+            if (!file.urlStr && docId !== '0' && docId !== '') {
+              // 这里需要调用nim去获取文件
+              let currentPage = file.currentPage;
+              return new Promise((resolve, reject) => {
+                nim.getFile({
+                  docId,
+                  success: function (cloudFile) {
+                    console.log('getFile success', cloudFile)
+                    const fileTypeMap = {
+                      '10': 'jpg',
+                      '11': 'png',
+                      '0': 'unknown'
+                    }
+                    let urlStr = `${cloudFile.prefix}_${cloudFile.type}_{index}.${fileTypeMap[cloudFile.transType]}`
+                    let url = urlStr.replace('{index}', currentPage)
+
+                    // 修改file
+                    file.pageCount = parseInt(cloudFile.pageCount);
+                    file.url = url;
+                    file.urlStr = urlStr;
+                    resolve(file)
+                  },
+                  error: function (error) {
+                    console.error('getFile error', error)
+                    reject(error)
+                  }
+                })
+              })
+            }
+          }
+          return Promise.resolve(file)
+        }
+
+      }
+
+
+
+
+
+
+      var recall = new RecordPlayer({
+        account: 'superUser', // 这个是以谁的角度来看录制
+        isCompatible: oldVersion && oldVersion.use ? true : false, // 是否是兼容模式，对于老版本的录制文件，需要做不同的解析
+        handleFile: handleOldVersionHook, // 如果isCompatible为 false， 则不用传入这个函数，
+        // 无论有多少个录制文件，都按照上面的格式放入到这个数组中，顺序不影响，可播放多人的录制
+        files: recordFiles,// 多个视频或者白板，都会有visibaleChange事件告诉开发者处理对应的dom
+      });
+      recall.on('visibleChange', function (type, option, callback) {
+        console.warn('visibleChange', type, option);
+        // 在这个事件里，开发者可以自己控制DOM的展示或者消失的，
+        // 甚至是一个异步的展示也是可以的，回放录制的player内部会暂停。
+        // 如果是show，开发者需要传入对应的dom节点。
+        // 如果是hide, 开发者仍需要调用callback来让回放录制继续播放
+
+        switch (option.type) {
+          case 'gz': {
+            if (type === 'show') {
+              // 展示白板
+              dom = document.getElementById('wb')
+              // 开发者可以在这个时候展示白板容器区域，完成后，将dom传入callback
+              callback(dom)
+            } else {
+              // 开发者可以在这个时候隐藏白板容器区域，完成后，调用callback回调
+              callback()
+            }
+            break;
+          }
+          case 'aac':
+          case 'flv':
+          case 'mp4': {
+            var jsVideo = document.getElementById('js-video')
+            var videoDom = jsVideo.querySelector(`[data-wv-vid="${option.account}"]`)
+            if (type === 'show') {
+              if (!videoDom) {
+                videoDom = document.createElement('div')
+                videoDom.setAttribute('data-wv-vid', option.account)
+                videoDom.classList.add('user-video-item')
+                jsVideo.appendChild(videoDom)
+              }
+              callback(videoDom)
+            } else {
+              // 开发者自己控制视频区域的隐藏以及布局，完成后，调用callback回调
+              videoDom && videoDom.remove()
+              callback()
+            }
+
+            break
+          }
+        }
+
+      })
+
+      /**
+       * recall实例将会抛出这些事件
+       * interface IRecallEvent {
+          ready: [],
+          visibleChange: ['show' | 'hide', IRecordFileParam, (dom: HTMLElement) => void]
+          tick: [number],
+          pause: [];
+          finish: [];
+          play: [];
+          finished: [];
+        }
+       */
+      recall.on('ready', () => {
+        // 播放器已经初始化完毕了
+        // RecordPlayerUI 是提供的简单的播放控制的组件，使用preact编写，开发者可以根据提供的源文件，编写其他框架的播放控制UI
+        const unmountFunc = RecordPlayerUI.mount(document.getElementById('tb'), recall)
+        console.log('ready', recall, unmountFunc);
+      })
+
+    }
+    /**
+     * RecordPlayerUI
+     */
+  </script>
+</body>
+
+</html>
