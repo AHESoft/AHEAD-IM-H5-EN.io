@@ -370,7 +370,7 @@
             if (attrs.flow === 'out') {
               let that = this
               this.$vux.confirm.show({
-                title: 'Sure需要撤回消息',
+                title: 'Sure to recall message?',
                 onCancel () {
                 },
                 onConfirm () {

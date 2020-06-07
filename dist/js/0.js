@@ -433,7 +433,7 @@ exports.default = {
           if (attrs.flow === 'out') {
             var that = this;
             this.$vux.confirm.show({
-              title: 'Sure需要撤回消息',
+              title: 'Sure to recall message?',
               onCancel: function onCancel() {},
               onConfirm: function onConfirm() {
                 that.$store.dispatch('revocateMsg', {
